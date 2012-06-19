@@ -660,10 +660,44 @@ rpcs::rpcstate_t
 rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 		unsigned int xid_rep, char **b, int *sz)
 {
-	ScopedLock rwl(&reply_window_m_);
+//	std::map<unsigned int,std::list<reply_t> >::iterator clt;
+	std::list<reply_t>::iterator it;   
+	rpcs::rpcstate_t stat = NEW;	
 
-        // You fill this in for Lab 1.
-	return NEW;
+	ScopedLock rwl(&reply_window_m_);
+	std::list<reply_t> replylist = reply_window_[clt_nonce];
+	for (it = replylist.begin();it != replylist.end();it++) {
+		printf("checkduplicate: xid %u for %u, status %u\n", (*it).xid, clt_nonce, (*it).cb_present);
+		if (xid == (*it).xid) {
+			jsl_log(JSL_DBG_2, "rpcs::checkduplicate_and_update: xid %u match for %u\n",
+                                        xid, clt_nonce);
+			if ((*it).cb_present == true) { 
+			   stat = DONE;  /* DONE */
+			   *b = (*it).buf;
+			   *sz = (*it).sz;
+			}
+			else if (!(*it).buf)
+			   stat = FORGOTTEN;  /* FORGOTTEN */
+			else
+			   stat = INPROGRESS; /* PROGRESSIVE */
+		}
+	if ((*it).xid < xid_rep) {
+		free((*it).buf);
+		(*it).buf = NULL;
+		(*it).sz = 0;	
+		(*it).cb_present = false;
+	}
+	}
+	if (stat == NEW) {
+	reply_t *replynew = new reply_t(xid); 
+	replylist.push_back(*replynew);
+	it = replylist.begin();
+	printf("Added new: xid %u, incoming xid %u to nonce %u\n", (*it).xid, xid, clt_nonce);
+	reply_window_[clt_nonce] = replylist;
+	}
+	jsl_log(JSL_DBG_2, "rpcs::checkduplicate_and_update: return stat %u\n",
+                                        stat);
+	return stat;
 }
 
 // rpcs::dispatch calls add_reply when it is sending a reply to an RPC,
@@ -675,8 +709,20 @@ void
 rpcs::add_reply(unsigned int clt_nonce, unsigned int xid,
 		char *b, int sz)
 {
+//	std::map<unsigned int,std::list<reply_t> >::iterator clt;
+	std::list<reply_t>::iterator it;
 	ScopedLock rwl(&reply_window_m_);
-        // You fill this in for Lab 1.
+	std::list<reply_t> replylist = reply_window_[clt_nonce];
+//	clt = reply_window_[clt_nonce];
+	for (it = replylist.begin();it != replylist.end();it++) {                                                                    
+		printf("add_reply: xid %u for %u, status %u\n", (*it).xid, clt_nonce, (*it).cb_present);
+		if (xid == (*it).xid) {
+			printf("add_reply: xid %u match for %u, status %u\n", (*it).xid, clt_nonce, (*it).cb_present);
+			(*it).cb_present = true;
+			(*it).buf = b;
+			(*it).sz = sz;
+		}
+	}
 }
 
 void
