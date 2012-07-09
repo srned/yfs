@@ -64,7 +64,7 @@ sleep 1
 echo "starting ./yfs_client $YFSDIR2 $EXTENT_PORT $LOCK_PORT > yfs_client2.log 2>&1 &"
 ./yfs_client $YFSDIR2 $EXTENT_PORT $LOCK_PORT > yfs_client2.log 2>&1 &
 
-sleep 2
+sleep 2 
 
 # make sure FUSE is mounted where we expect
 pwd=`pwd -P`

@@ -14,11 +14,11 @@ class extent_client {
  public:
   extent_client(std::string dst);
 
-  extent_protocol::status get(extent_protocol::extentid_t eid, 
+  extent_protocol::status get(extent_protocol::extentid_t eid,int off, unsigned int size, 
 			      std::string &buf);
   extent_protocol::status getattr(extent_protocol::extentid_t eid, 
 				  extent_protocol::attr &a);
-  extent_protocol::status put(extent_protocol::extentid_t eid, std::string buf);
+  extent_protocol::status put(extent_protocol::extentid_t eid, int off, std::string buf);
   extent_protocol::status remove(extent_protocol::extentid_t eid);
 };
 

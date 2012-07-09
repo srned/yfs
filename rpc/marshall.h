@@ -7,6 +7,7 @@
 #include <vector>
 #include <map>
 #include <stdlib.h>
+#include <sys/types.h>
 #include <string.h>
 #include <cstddef>
 #include <inttypes.h>
@@ -124,6 +125,9 @@ marshall& operator<<(marshall &, unsigned short);
 marshall& operator<<(marshall &, short);
 marshall& operator<<(marshall &, unsigned long long);
 marshall& operator<<(marshall &, const std::string &);
+marshall& operator<<(marshall &, long);
+marshall& operator<<(marshall &, long long int);
+marshall& operator<<(marshall &, long long);
 
 class unmarshall {
 	private:
@@ -207,6 +211,9 @@ unmarshall& operator>>(unmarshall &, unsigned int &);
 unmarshall& operator>>(unmarshall &, int &);
 unmarshall& operator>>(unmarshall &, unsigned long long &);
 unmarshall& operator>>(unmarshall &, std::string &);
+unmarshall& operator>>(unmarshall &, long long int &);
+unmarshall& operator>>(unmarshall &, long long &);
+unmarshall& operator>>(unmarshall &, long &);
 
 template <class C> marshall &
 operator<<(marshall &m, std::vector<C> v)

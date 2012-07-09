@@ -667,7 +667,7 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 	ScopedLock rwl(&reply_window_m_);
 	std::list<reply_t> replylist = reply_window_[clt_nonce];
 	for (it = replylist.begin();it != replylist.end();it++) {
-		printf("checkduplicate: xid %u for %u, status %u\n", (*it).xid, clt_nonce, (*it).cb_present);
+//		printf("checkduplicate: xid %u for %u, status %u\n", (*it).xid, clt_nonce, (*it).cb_present);
 		if (xid == (*it).xid) {
 			jsl_log(JSL_DBG_2, "rpcs::checkduplicate_and_update: xid %u match for %u\n",
                                         xid, clt_nonce);
@@ -692,7 +692,7 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 	reply_t *replynew = new reply_t(xid); 
 	replylist.push_back(*replynew);
 	it = replylist.begin();
-	printf("Added new: xid %u, incoming xid %u to nonce %u\n", (*it).xid, xid, clt_nonce);
+//	printf("Added new: xid %u, incoming xid %u to nonce %u\n", (*it).xid, xid, clt_nonce);
 	reply_window_[clt_nonce] = replylist;
 	}
 	jsl_log(JSL_DBG_2, "rpcs::checkduplicate_and_update: return stat %u\n",
@@ -715,9 +715,9 @@ rpcs::add_reply(unsigned int clt_nonce, unsigned int xid,
 	std::list<reply_t> replylist = reply_window_[clt_nonce];
 //	clt = reply_window_[clt_nonce];
 	for (it = replylist.begin();it != replylist.end();it++) {                                                                    
-		printf("add_reply: xid %u for %u, status %u\n", (*it).xid, clt_nonce, (*it).cb_present);
+//		printf("add_reply: xid %u for %u, status %u\n", (*it).xid, clt_nonce, (*it).cb_present);
 		if (xid == (*it).xid) {
-			printf("add_reply: xid %u match for %u, status %u\n", (*it).xid, clt_nonce, (*it).cb_present);
+//			printf("add_reply: xid %u match for %u, status %u\n", (*it).xid, clt_nonce, (*it).cb_present);
 			(*it).cb_present = true;
 			(*it).buf = b;
 			(*it).sz = sz;

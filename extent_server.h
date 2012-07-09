@@ -11,9 +11,20 @@ class extent_server {
 
  public:
   extent_server();
+  ~extent_server();
+ protected:
 
-  int put(extent_protocol::extentid_t id, std::string, int &);
-  int get(extent_protocol::extentid_t id, std::string &);
+ struct extent_value {
+ std::string data;
+ extent_protocol::attr ext_attr;
+ };
+
+ typedef std::map<extent_protocol::extentid_t, extent_value *> Textent_store;
+ Textent_store extent_store;
+ pthread_mutex_t extstore_mutex;
+  public:
+  int put(extent_protocol::extentid_t id, int off, std::string, int &);
+  int get(extent_protocol::extentid_t id, int off, unsigned int size, std::string &);
   int getattr(extent_protocol::extentid_t id, extent_protocol::attr &);
   int remove(extent_protocol::extentid_t id, int &);
 };
