@@ -251,7 +251,7 @@ fuseserver_createhelper(fuse_ino_t parent, const char *name,
   e->generation = 0;
   // You fill this in for Lab 2
   printf("createhelper parent %016lx name %s\n", parent, name);
-  ret = yfs->createfile(p_inum, name, c_inum);
+  ret = yfs->createfile(p_inum, name, c_inum, true);
   if (ret == yfs_client::OK) {
      struct stat st;
      e->ino = c_inum;
@@ -418,6 +418,10 @@ fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
      mode_t mode)
 {
   struct fuse_entry_param e;
+  yfs_client::status ret;
+  yfs_client::inum p_inum = parent;
+  yfs_client::inum c_inum;
+
   // In yfs, timeouts are always set to 0.0, and generations are always set to 0
   e.attr_timeout = 0.0;
   e.entry_timeout = 0.0;
@@ -426,11 +430,20 @@ fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
   (void) e;
 
   // You fill this in for Lab 3
-#if 0
-  fuse_reply_entry(req, &e);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
+  printf("mkdir parent %016lx name %s\n", parent, name);
+  ret = yfs->createfile(p_inum, name, c_inum, false);
+  if (ret == yfs_client::OK) {
+     struct stat st;
+     e.ino = c_inum;
+     if((ret = getattr(c_inum, st)) == yfs_client::OK) {
+        e.attr = st;
+	fuse_reply_entry(req, &e);
+     }
+  }
+  if (ret == yfs_client::EXIST) 
+     fuse_reply_err(req, EEXIST);
+  else
+     fuse_reply_err(req, ENOENT);
 }
 
 //
@@ -447,7 +460,19 @@ fuseserver_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
   // You fill this in for Lab 3
   // Success:	fuse_reply_err(req, 0);
   // Not found:	fuse_reply_err(req, ENOENT);
-  fuse_reply_err(req, ENOSYS);
+  yfs_client::status ret;
+  yfs_client::inum p_inum = parent;
+
+  printf("unlink parent %016lx name %s\n", parent, name);
+  ret = yfs->unlink(p_inum, name);
+  if (ret == yfs_client::OK) 
+     fuse_reply_err(req, 0);
+  else {
+     if (ret == yfs_client::NOENT)
+	fuse_reply_err(req, ENOENT);
+     else
+        fuse_reply_err(req, ENOSYS);
+  }
 }
 
 void

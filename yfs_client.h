@@ -6,9 +6,12 @@
 #include "extent_client.h"
 #include <vector>
 
+#include "lock_protocol.h"
+#include "lock_client.h"
 
 class yfs_client {
   extent_client *ec;
+  lock_client *lc;
  public:
 
   typedef unsigned long long inum;
@@ -45,13 +48,13 @@ class yfs_client {
   int getfile(inum, fileinfo &);
   int getdir(inum, dirinfo &);
   int setattr(inum, fileinfo &);
-  int createfile(inum, const char *, inum &);
-  int createdir(inum, const char *, inum &);
+  int createfile(inum, const char *, inum &, bool isfile);
   int createroot(inum, const char *);
   int lookup(inum, const char *, inum &);
   int readdir(inum, std::vector<dirent> &);
   int read(inum, off_t off, size_t size, std::string &);
   int write(inum, const char *, off_t off, size_t size);
+  int unlink(inum, const char *);
 };
 
 #endif 

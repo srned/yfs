@@ -66,6 +66,7 @@ int extent_server::get(extent_protocol::extentid_t id, int off, unsigned int siz
 
     extent_obj->ext_attr.atime = time(NULL);
     extent_store[id] = extent_obj;
+    printf("extent_server:: get buf:%s\n", buf.c_str());
     return extent_protocol::OK;
   }
   printf("extent_server::get entry not present for %016llx \n", id);
@@ -101,6 +102,7 @@ int extent_server::remove(extent_protocol::extentid_t id, int &)
 {
   // You fill this in for Lab 2.
   ScopedLock ml(&extstore_mutex);
+  printf("Removing file for %016llx \n", id);
   delete(extent_store[id]);
   extent_store.erase(id); 
 //  return extent_protocol::IOERR;
