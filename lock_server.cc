@@ -6,8 +6,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
-pthread_mutex_t lmap_mutex;
-pthread_cond_t lmap_state_cv;
 
 /* Constructor */
 lock_server::lock_server():

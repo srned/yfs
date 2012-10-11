@@ -60,6 +60,11 @@
  x exited worker threads).
  */
 
+/* Suresh comments
+ This is to fix the solution that addresses atmost once delivery of RPC on server side.
+ Essentially, we respond back with INPROGRESS if cb_present is false.
+ */
+
 #include "rpc.h"
 #include "method_thread.h"
 #include "slock.h"
@@ -660,44 +665,40 @@ rpcs::rpcstate_t
 rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 		unsigned int xid_rep, char **b, int *sz)
 {
-//	std::map<unsigned int,std::list<reply_t> >::iterator clt;
-	std::list<reply_t>::iterator it;   
-	rpcs::rpcstate_t stat = NEW;	
-
-	ScopedLock rwl(&reply_window_m_);
-	std::list<reply_t> replylist = reply_window_[clt_nonce];
-	for (it = replylist.begin();it != replylist.end();it++) {
-//		printf("checkduplicate: xid %u for %u, status %u\n", (*it).xid, clt_nonce, (*it).cb_present);
-		if (xid == (*it).xid) {
-			jsl_log(JSL_DBG_2, "rpcs::checkduplicate_and_update: xid %u match for %u\n",
-                                        xid, clt_nonce);
-			if ((*it).cb_present == true) { 
-			   stat = DONE;  /* DONE */
-			   *b = (*it).buf;
-			   *sz = (*it).sz;
-			}
-			else if (!(*it).buf)
-			   stat = FORGOTTEN;  /* FORGOTTEN */
-			else
-			   stat = INPROGRESS; /* PROGRESSIVE */
-		}
-	if ((*it).xid < xid_rep) {
-		free((*it).buf);
-		(*it).buf = NULL;
-		(*it).sz = 0;	
-		(*it).cb_present = false;
-	}
-	}
-	if (stat == NEW) {
-	reply_t *replynew = new reply_t(xid); 
-	replylist.push_back(*replynew);
-	it = replylist.begin();
-//	printf("Added new: xid %u, incoming xid %u to nonce %u\n", (*it).xid, xid, clt_nonce);
-	reply_window_[clt_nonce] = replylist;
-	}
-	jsl_log(JSL_DBG_2, "rpcs::checkduplicate_and_update: return stat %u\n",
-                                        stat);
-	return stat;
+     ScopedLock rwl(&reply_window_m_);
+     std::list<reply_t>::iterator iter = reply_window_[clt_nonce].begin();
+     bool isForgotten = true;
+     bool isEmpty = reply_window_[clt_nonce].empty();
+     jsl_log(JSL_DBG_2, "rpcs::checkduplicate_and_update request: xid:%u, clt:%u\n", xid, clt_nonce);
+     while(iter != reply_window_[clt_nonce].end()){
+         reply_t reply = *iter;
+         if(reply.xid < xid_rep){
+             iter = reply_window_[clt_nonce].erase(iter);
+         }
+         else{
+             if(reply.xid == xid){
+                 if(reply.cb_present){
+                     *b = reply.buf;
+                     *sz = reply.sz;
+                     return DONE;
+                 }
+                 else return INPROGRESS;
+             }
+             else if(reply.xid < xid){
+                 isForgotten = false;
+             }
+             iter++;
+         }
+     }
+     if(isEmpty || !isForgotten){
+         reply_t reply(xid);
+         reply_window_[clt_nonce].push_back(reply);
+         return NEW;
+     }
+     else { 
+         jsl_log(JSL_DBG_2, "rpcs::checkduplicate_and_update:forgotten,xid:%u, clt:%u\n", xid, clt_nonce);
+         return FORGOTTEN;
+     }
 }
 
 // rpcs::dispatch calls add_reply when it is sending a reply to an RPC,
@@ -709,20 +710,17 @@ void
 rpcs::add_reply(unsigned int clt_nonce, unsigned int xid,
 		char *b, int sz)
 {
-//	std::map<unsigned int,std::list<reply_t> >::iterator clt;
-	std::list<reply_t>::iterator it;
-	ScopedLock rwl(&reply_window_m_);
-	std::list<reply_t> replylist = reply_window_[clt_nonce];
-//	clt = reply_window_[clt_nonce];
-	for (it = replylist.begin();it != replylist.end();it++) {                                                                    
-//		printf("add_reply: xid %u for %u, status %u\n", (*it).xid, clt_nonce, (*it).cb_present);
-		if (xid == (*it).xid) {
-//			printf("add_reply: xid %u match for %u, status %u\n", (*it).xid, clt_nonce, (*it).cb_present);
-			(*it).cb_present = true;
-			(*it).buf = b;
-			(*it).sz = sz;
-		}
-	}
+     ScopedLock rwl(&reply_window_m_);
+     std::list<reply_t>::iterator iter = reply_window_[clt_nonce].begin();
+     for(;iter != reply_window_[clt_nonce].end(); ++iter){
+         reply_t reply = *iter;
+         if(reply.xid == xid){
+             iter->buf = b;
+             iter->sz = sz;
+             iter->cb_present = true;
+             break;
+         }
+     }
 }
 
 void
