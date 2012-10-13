@@ -67,6 +67,7 @@ class lock_client_cache : public lock_client {
   typedef int l_cache_state;
 
   struct lock_cache_value {
+      bool doflush; // This is used to track if the lock has been locked atleast once
       l_cache_state lock_cache_state; // State of the lock cache
       pthread_mutex_t client_lock_mutex; // To protect this structure
       pthread_cond_t client_lock_cv; // CV to be notified of state change

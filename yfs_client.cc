@@ -11,11 +11,20 @@
 #include <fcntl.h>
 #include <vector>
 
+lock_release_impl::lock_release_impl(extent_client *ec) {
+    this->ec = ec;
+}
+
+void
+lock_release_impl::dorelease(lock_protocol::lockid_t lid) {
+    ec->flush(lid);
+}
 
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
 {
   ec = new extent_client(extent_dst);
-  lc = new lock_client_cache(lock_dst);
+  lu = new lock_release_impl(ec);
+  lc = new lock_client_cache(lock_dst, lu);
 }
 
 yfs_client::inum
@@ -126,35 +135,10 @@ yfs_client::setattr(inum inum, fileinfo &fin)
   std::string file_buf;
   printf("yfs_client::setattr %016llx, fin.size %lld \n", inum, fin.size);
   lc->acquire(inum);
-/*  extent_protocol::attr a;
-  if (ec->getattr(inum, a) != extent_protocol::OK) {
-    r = IOERR;
-    goto release;
-  }
-
-  if (fin.size == 0) {
-    if (ec->put(file_inum, -1, 0, file_buf) != extent_protocol::OK) {
-      r = IOERR;
-      goto release;
-    } 
-  } else */
     if (ec->put(inum, fin.size, file_buf) != extent_protocol::OK) {
       r = IOERR;
       goto release;
     }
-
-    
-  
-/*
-
-if (fin.size < a.size) {
-      file_buf.assign((a.size - fin.size), '\0');
-      r = write(inum, file_buf.c_str(), fin.size, (a.size - fin.size));
-  } else if (fin.size > a.size) {
-      r = write(inum, file_buf.c_str(), a.size, (fin.size - a.size));
-
-  }
-  */
   r = OK; 
  
  release:
@@ -244,6 +228,7 @@ yfs_client::lookup(inum p_inum, const char *name, inum &c_inum) {
 // Read Parent Dir and check if name already exists
   lc->acquire(p_inum);
   if (ec->get(p_inum, -1, 0, p_buf) != extent_protocol::OK) {
+      printf("yfs_client:lookup, get NOENT for %016llx\n", p_inum);
      r = NOENT;
      goto release;
   }
@@ -313,66 +298,36 @@ yfs_client::readdir(inum p_inum, std::vector<dirent> &r_dirent) {
 
 int
 yfs_client::read(inum in_inum, off_t off, size_t size, std::string &buf) {
-   int r = OK;
-   printf("yfs_client::read %016llx, off %ld size %u \n", in_inum, (long int) off, size);
-   lc->acquire(in_inum);
-  /* fileinfo fin;
+    int r = OK;
+    printf("yfs_client::read %016llx, off %ld size %u \n", in_inum, (long int) off, size);
+    lc->acquire(in_inum);
+    if (ec->get(in_inum, (int) off, (unsigned int) size, buf) != extent_protocol::OK) {
+        r = IOERR;
+        goto release;
+    }
+    r = OK;
 
-   if (getfile(in_inum, fin) != OK) {
-     r = IOERR;
-     goto release;
-   }
-
-   if (off > fin.size) {
-      buf = '\0';
-      r = OK;
-      goto release;
-   }
-
-   if ((off + size) > fin.size) 
-	size = fin.size - off;
-    */ 
-   if (ec->get(in_inum, (int) off, (unsigned int) size, buf) != extent_protocol::OK) {
-          r = IOERR;
-          goto release;
-   }
-    
-   r = OK;
-
- release:
-   lc->release(in_inum);
-   return r; 
+release:
+    lc->release(in_inum);
+    return r; 
 }
 
 int
 yfs_client::write(inum in_inum, const char *buf, off_t off, size_t size) {
-   std::string file_buf;
-   int r = OK;
-   printf("yfs_client::write %016llx, off %ld size %u \n", in_inum, (long int) off, size);     lc->acquire(in_inum);
-/*   fileinfo fin;
+    std::string file_buf;
+    int r = OK;
+    printf("yfs_client::write %016llx, off %ld size %u \n", in_inum, (long int) off, size);     
+    lc->acquire(in_inum);
+    file_buf.append(buf, size);
+    if (ec->put(in_inum, (int) off, file_buf) != extent_protocol::OK) {
+        r = IOERR;
+        goto release;
+    }
+    r = OK;
 
-   if (getfile(in_inum, fin) != OK) {
-     r = IOERR;
-     goto release;
-   }
-
-   if (off > fin.size) {
-      file_buf.assign((off - fin.size), '\0');
-      size = size + off - fin.size;
-      off = fin.size;
-   }
-*/
-   file_buf.append(buf, size);
-   if (ec->put(in_inum, (int) off, file_buf) != extent_protocol::OK) {
-      r = IOERR;
-      goto release;
-   }
-
-   r = OK;
-
- release:
-  lc->release(in_inum);
-  return r;
+release:
+    lc->release(in_inum);
+    return r;
 }
 
 

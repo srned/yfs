@@ -66,11 +66,12 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
     while(true) {
         if (lock_cache_obj->lock_cache_state == NONE) {
             // send acquire rpc
-            //tprintf("in None case,tid: %lu\n", pthread_self());
+            tprintf("in None case,tid: %lu\n", pthread_self());
             lock_cache_obj->lock_cache_state = ACQUIRING;
-            //tprintf("Called server for Acquire, tid: %lu, id: %s\n", pthread_self(), id.c_str());
+            lock_cache_obj->doflush = false;
+            tprintf("Called server for Acquire, tid: %lu, id: %s\n", pthread_self(), id.c_str());
             ret = cl->call(lock_protocol::acquire, id, lid, r);
-            //tprintf("Responded back, tid:%lu\n", pthread_self());
+            tprintf("Responded back, tid:%lu\n", pthread_self());
             if (ret == lock_protocol::OK) { 
                 lock_cache_obj->lock_cache_state = LOCKED;
                 break;
@@ -79,6 +80,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
                 // wait on condition to be notified by retry RPC
                 pthread_cond_wait(&lock_cache_obj->client_lock_cv,                                     
                 &lock_cache_obj->client_lock_mutex);
+                tprintf("client_cache-acquire: out from condition\n");
                 if (FREE == lock_cache_obj->lock_cache_state) {
                     lock_cache_obj->lock_cache_state = LOCKED;
                     break;
@@ -87,7 +89,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
             }
         }
         else if (lock_cache_obj->lock_cache_state == FREE) {
-            //tprintf("in FREE case,tid: %lu\n", pthread_self());
+            tprintf("in FREE case,tid: %lu\n", pthread_self());
             lock_cache_obj->lock_cache_state = LOCKED;
             break;
         }
@@ -101,6 +103,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
                 else continue;
         }
     }
+    lock_cache_obj->doflush = true;
     pthread_mutex_unlock(&lock_cache_obj->client_lock_mutex);
 
     return lock_protocol::OK;
@@ -156,7 +159,7 @@ lock_client_cache::retryer(void) {
             lock_protocol::lockid_t lid = retry_list.front();
             retry_list.pop_front();
             lock_cache_value *lock_cache_obj = get_lock_obj(lid);
-            //tprintf("retryer: for lid:%llu\n", lid);
+            tprintf("retryer: for lid:%llu\n", lid);
             pthread_mutex_lock(&lock_cache_obj->client_lock_mutex);
             ret = cl->call(lock_protocol::acquire, id, lid, r);
             if (ret == lock_protocol::OK) {
@@ -174,6 +177,7 @@ lock_client_cache::retryer(void) {
 void
 lock_client_cache::releaser(void) {
     int r,ret;
+//    bool doflush=true;
     while(true) {
         pthread_mutex_lock(&client_releaser_mutex);
         pthread_cond_wait(&client_releaser_cv, &client_releaser_mutex);
@@ -182,13 +186,22 @@ lock_client_cache::releaser(void) {
             revoke_list.pop_front();
             lock_cache_value *lock_cache_obj = get_lock_obj(lid);
             pthread_mutex_lock(&lock_cache_obj->client_lock_mutex);
+            tprintf("releaser: got lock checking\n");
             if (lock_cache_obj->lock_cache_state == LOCKED) {
                 lock_cache_obj->lock_cache_state = RELEASING;
-                //tprintf("releaser: waiting in releasing state\n");
+                tprintf("releaser: waiting in releasing state\n");
                 pthread_cond_wait(&lock_cache_obj->client_revoke_cv,
                         &lock_cache_obj->client_lock_mutex);
             }
-            //tprintf("releaser: calling server release, id: %s\n", id.c_str());
+  //          else if (lock_cache_obj->lock_cache_state == ACQUIRING) {
+    //            tprintf("releaser: calling server release, id: ACQUIRING\n");
+      //          doflush = false;
+        //    }
+            tprintf("releaser: calling server release, id: %s\n", id.c_str());
+            if(lock_cache_obj->doflush) {
+                tprintf("releaser: state: %d\n", lock_cache_obj->lock_cache_state);
+                lu->dorelease(lid);
+            }
             ret = cl->call(lock_protocol::release, id, lid, r);
             lock_cache_obj->lock_cache_state = NONE;
             pthread_cond_signal(&lock_cache_obj->client_lock_cv);
@@ -203,7 +216,7 @@ lock_client_cache::revoke_handler(lock_protocol::lockid_t lid,
                                   int &)
 {
   int ret = rlock_protocol::OK;
-  //tprintf("got revoke from server for lid:%llu\n", lid);
+  tprintf("got revoke from server for lid:%llu\n", lid);
   pthread_mutex_lock(&client_releaser_mutex);
   revoke_list.push_back(lid);
   pthread_cond_signal(&client_releaser_cv);
@@ -218,7 +231,7 @@ lock_client_cache::retry_handler(lock_protocol::lockid_t lid,
 {
   int ret = rlock_protocol::OK;
   // Push the lid to the retry list
-  //tprintf("got retry from server for lid:%llu\n", lid);
+  tprintf("got retry from server for lid:%llu\n", lid);
   pthread_mutex_lock(&client_retry_mutex);
   retry_list.push_back(lid);
   pthread_cond_signal(&client_retry_cv);
