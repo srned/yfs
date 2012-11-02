@@ -1,17 +1,22 @@
 // lock client interface.
 
-#ifndef lock_client_cache_h
+#ifndef lock_client_cache_rsm_h
 
-#define lock_client_cache_h
+#define lock_client_cache_rsm_h
 
 #include <string>
 #include "lock_protocol.h"
 #include "rpc.h"
 #include "lock_client.h"
-#include "rsm_client.h"
 #include "lang/verify.h"
-#include <map>
 
+#include "rsm_client.h"
+
+// Classes that inherit lock_release_user can override dorelease so that 
+// that they will be called when lock_client releases a lock.
+// You will not need to do anything with this class until Lab 5.
+//
+//
 // Classes that inherit lock_release_user can override dorelease so that 
 // that they will be called when lock_client releases a lock.
 // You will not need to do anything with this class until Lab 5.
@@ -56,13 +61,19 @@ class lock_release_user {
   virtual ~lock_release_user() {};
 };
 
-class lock_client_cache : public lock_client {
+
+class lock_client_cache_rsm;
+
+// Clients that caches locks.  The server can revoke locks using 
+// lock_revoke_server.
+class lock_client_cache_rsm : public lock_client {
  private:
+  rsm_client *rsmc;
   class lock_release_user *lu;
-  class rsm_client *rsmc;
   int rlock_port;
   std::string hostname;
   std::string id;
+  lock_protocol::xid_t xid;
 
  protected:
   enum lock_cache_state { NONE, FREE, LOCKED, ACQUIRING, RELEASING };
@@ -86,19 +97,21 @@ class lock_client_cache : public lock_client {
   std::list<lock_protocol::lockid_t> revoke_list;
   lock_cache_value* get_lock_obj(lock_protocol::lockid_t lid);
 
+
  public:
-  lock_client_cache(std::string xdst, class lock_release_user *l = 0);
-  virtual ~lock_client_cache() {};
+  static int last_port;
+  lock_client_cache_rsm(std::string xdst, class lock_release_user *l = 0);
+  virtual ~lock_client_cache_rsm() {};
   lock_protocol::status acquire(lock_protocol::lockid_t);
-  lock_protocol::status release(lock_protocol::lockid_t);
-  rlock_protocol::status revoke_handler(lock_protocol::lockid_t, 
-                                        int &);
-  rlock_protocol::status retry_handler(lock_protocol::lockid_t, 
-                                       int &);
+  virtual lock_protocol::status release(lock_protocol::lockid_t);
+  void releaser();
   void retryer(void);
-  void releaser(void);
-  int acquire_from_server(long long unsigned int, lock_client_cache::lock_cache_value*);
-  void wait_to_acquire(long long unsigned int, lock_client_cache::lock_cache_value*);
+
+  rlock_protocol::status revoke_handler(lock_protocol::lockid_t, 
+				        lock_protocol::xid_t, int &);
+  rlock_protocol::status retry_handler(lock_protocol::lockid_t, 
+				       lock_protocol::xid_t, int &);
+
 };
 
 

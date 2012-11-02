@@ -2,7 +2,8 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "lock_server_cache.h"
+#include <signal.h>
+#include "lock_server_cache_rsm.h"
 #include "paxos.h"
 #include "rsm.h"
 
@@ -10,10 +11,19 @@
 
 // Main loop of lock_server
 
+static void
+force_exit(int) {
+    exit(0);
+}
+
 int
 main(int argc, char *argv[])
 {
   int count = 0;
+
+  // Force the lock_server to exit after 20 minutes
+  signal(SIGALRM, force_exit);
+  alarm(20 * 60);
 
   setvbuf(stdout, NULL, _IONBF, 0);
   setvbuf(stderr, NULL, _IONBF, 0);
@@ -37,7 +47,23 @@ main(int argc, char *argv[])
   // RSM layer.
 #define	RSM
 #ifdef RSM
-   rsm rsm(argv[1], argv[2]);
+// You must comment out the next line once you are done with Step One.
+//#define STEP_ONE 
+#ifdef STEP_ONE
+  rpcs server(atoi(argv[1]));
+  lock_server_cache_rsm ls;
+  server.reg(lock_protocol::acquire, &ls, &lock_server_cache_rsm::acquire);
+  server.reg(lock_protocol::release, &ls, &lock_server_cache_rsm::release);
+  server.reg(lock_protocol::stat, &ls, &lock_server_cache_rsm::stat);
+#else
+  printf("lock_smain: registering procs\n");
+  rsm rsm(argv[1], argv[2]);
+  lock_server_cache_rsm ls(&rsm);
+  rsm.set_state_transfer((rsm_state_transfer *)&ls);
+  rsm.reg(lock_protocol::acquire, &ls, &lock_server_cache_rsm::acquire);
+  rsm.reg(lock_protocol::release, &ls, &lock_server_cache_rsm::release);
+  rsm.reg(lock_protocol::stat, &ls, &lock_server_cache_rsm::stat);
+#endif // STEP_ONE
 #endif // RSM
 
 

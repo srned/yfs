@@ -1,0 +1,79 @@
+This commit is solution to lab7, Replicated State Machine
+
+user@ubuntu:~/git_projects/yfs-git/yfs$ git status
+# On branch master
+# Changed but not updated:
+#   (use "git add <file>..." to update what will be committed)
+#   (use "git checkout -- <file>..." to discard changes in working directory)
+#
+#   modified:   GNUmakefile
+#   modified:   README.md
+#   modified:   lock_client_cache.cc
+#   modified:   lock_client_cache.h
+#   modified:   lock_smain.cc
+#   modified:   lock_tester.cc
+#   modified:   paxos.cc
+#   modified:   rpc/marshall.h
+#   modified:   rsm.cc
+#   modified:   rsm.h
+#
+# Untracked files:
+#   (use "git add <file>..." to include in what will be committed)
+#
+#   lock_client_cache_rsm.cc
+#   lock_client_cache_rsm.h
+#   lock_server_cache_rsm.cc
+#   lock_server_cache_rsm.h
+#   rsm_client.cc
+#   rsm_client.h
+
+Design
+======
+Replicated State Machine (RSM)
+-----------------
+In this exercise, we implement RSM version of lock service. 
+
+1) Replicable caching lock server
+---------------------------------
+In this step, we ported the previous cache implementation. This guarantees there will not be any deadlock caused by RSM layer. 
+So, we dont hold locks across RPC calls. Use background threads with retryer/releaser threads to update state on server side
+that needs response from client.
+
+2) RSM without failures
+-----------------------
+-The RSM client sends its request to the master by calling the invoke RPC.(handle if RSM is in view change undergoing paxos or if this is not primary anymore)
+-The master assigns the client request the next viewstamp in sequence, and sends the invoke RPC to each slave.
+-If the request has the expected viewstamp, the slave executes the request locally and replies OK to the master.
+-The master executes the request locally, and replies back to the client.
+
+Only the primary lock_server_cache_rsm will communicate directly to clients. 
+
+3) Cope with Backup Failures and Implement state transfer
+---------------------------------------------------------
+Upon detecting failure(heartbeat thread in config layer)/addition of new node(recovery thread in rsm layer), paxos will be kicked off and once it settles,
+each replica should get state from new master. Master will hold still until all backups have synced (implemented with cond var).
+-We serialize the state in master and implement marshal_state and unmarshal_state methods. This will be used on master and replica ends
+-sync_with_backups in recovery thread in primary will wait for all replicas to sync up.
+-sync_with_primary in recovery thread in backups will sync seperately to master.
+-statetransferdone is called from backup to convey that sync is done
+-transferdonereq is handler for above on primary
+
+4) Cope with Primary Failures
+-----------------------------
+-Clients call init_members() if primary returns NOTPRIMARY response. this way we reinitialize the view
+-If there is no response from primary at all, then, we assume the next member from the view as primary and try until succeeds.
+
+5) Complicated Failures
+-----------------------
+-Master fails after 1 slave gets the request and second slave is in process of updating state.
+-Fail one of slave before responding
+
+=========
+Conclusion
+==========
+With this, we conclude this series of exercises. Happy Coding!
+
+Best,
+srned
+
+

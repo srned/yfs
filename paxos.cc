@@ -174,7 +174,7 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
                     ret == rpc_const::oldsrv_failure) {
                 mgr.delete_handle(nodes[i]);
             } else {
-                tprintf("proposer:prepare: error ret:%016x\n", ret);
+                tprintf("proposer:prepare: error node:%s ret:%016x\n", nodes[i].c_str(),ret);
             }
         }
         else {
@@ -322,7 +322,9 @@ acceptor::acceptreq(std::string src, paxos_protocol::acceptarg a, bool &r)
 {
     // You fill this in for Lab 6
     // Remember to *log* the accept if the proposal is accepted.
+    tprintf("acceptor:acceptreq before lock\n");
     ScopedLock ml(&pxs_mutex);
+    tprintf("acceptor:acceptreq after lock\n");
     r = false;
     if (a.instance <= instance_h) {
         printf("acceptor:acceptreq: responding with oldinstance to %s, "
